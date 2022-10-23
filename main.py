@@ -1,5 +1,6 @@
 import requests
 from copy import copy, deepcopy
+import collections
 search_list=["BFS","DFS","UCS","GS","A*","A*2"]
 search="BFS"
 target_url="https://www.cmpe.boun.edu.tr/~emre/courses/cmpe480/hw1/input.txt"
@@ -9,6 +10,16 @@ txt = requests.get(target_url).text
 #nodes = []
 #nodes.append((cost, node))
 #nodes.sort() --> priority yapmak için
+
+class Node2:
+    def __init__(self, parent, cost, numberOfPins, board, children, cumulativeCost, path):
+        self.parent = parent
+        self.cost = cost
+        self.numberOfPins = numberOfPins
+        self.children = children
+        self.board = board
+        self.cumulativeCost = cumulativeCost
+        self.path = path
 
 class Node:
     def __init__(self, parent, cost, numberOfPins, board, cumulativeCost, path):
@@ -77,7 +88,7 @@ def getPinsAndLocations(board): #returns pins on the board and their locations
             if board[i][j] != '.':
                 res[board[i][j]] = [i,j]
 
-    return res
+    return collections.OrderedDict(sorted(res.items()))
 
 def canGo(board, pin, locs, direction): #returns the number of jumps a pin can make to a certain direction. if it cant, returns -1
     if direction == "up":
@@ -166,20 +177,23 @@ def findAllMoves(board): #returns all possible moves in a board EXPAND
 
     locs = getPinsAndLocations(board)
 
+
     for pin in locs:
         up = canGo(board, pin, locs, "up")
         down = canGo(board, pin, locs, "down")
         left = canGo(board, pin, locs, "left")
         right = canGo(board, pin, locs, "right")
-        if up != -1:
-            moves.append(pin + " up " + str(up))
-        if down != -1:
-            moves.append(pin + " down " + str(down))
         if left != -1:
             moves.append(pin + " left " + str(left))
+        if down != -1:
+            moves.append(pin + " down " + str(down))
         if right != -1:
             moves.append(pin + " right " + str(right))
+        if up != -1:
+            moves.append(pin + " up " + str(up))
 
+
+    #print(moves)
     return moves
 
 
@@ -205,7 +219,7 @@ def BFS(board):
     queue.append(root)
 
     while len(queue) > 0:
-        node = queue.pop()
+        node = queue.pop(0)
         board = node.board
         nofPins = node.numberOfPins
         path = node.path
@@ -226,6 +240,46 @@ def BFS(board):
     return False, None
 
 
+def DFS(board):
+
+    stack = []
+    pinsAndLocs = getPinsAndLocations(board)
+    nofPins = len(pinsAndLocs)
+    root = Node(None, 0, nofPins, board, 0, "")
+
+    stack.append([root])
+
+    while len(stack) > 0:
+        lst = stack.pop()
+        if len(lst) == 0:
+            continue
+        node = lst[0]
+        board = node.board
+        nofPins = node.numberOfPins
+        path = node.path
+
+        if nofPins == 1:
+            return True, node
+
+        moves = findAllMoves(board)
+        if len(moves) == 0:
+            lst.pop(0)
+            stack.append(lst)
+            continue
+
+        stack.append(lst)
+        l = []
+        for move in moves:
+            removedPins = int(move.split()[2]) - 1
+            board_ = updateBoard(board, move)
+            # printBoard(board_)
+            cost = getCostOfAMove(move)
+            l.append(Node(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost), (path + ", " + move)))
+
+        stack.append(l)
+
+    return False, None
+
 
 board = []
 for line in txt.splitlines():
@@ -237,20 +291,10 @@ for line in txt.splitlines():
         l.append(line[j])
     board.append(l)
 
-#(board)
-success, node = BFS(board)
+printBoard(board)
+success, node = DFS(board)
 print(success, node.cumulativeCost, node.path)
 """pinloc = getPinsAndLocations(board)
 
 board2 = updateBoard(board, "d down 4", pinloc)
 printBoard(board2)"""
-
-board2 = updateBoard(board, "e left 2")
-board3 = updateBoard(board2, "e up 4")
-board4 = updateBoard(board3, "b up 3")
-board5 = updateBoard(board3, "e left 2")
-printBoard(board)
-printBoard(board2)
-printBoard(board3)
-printBoard(board4)
-printBoard(board5)
