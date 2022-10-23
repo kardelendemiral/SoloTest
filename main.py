@@ -12,14 +12,15 @@ txt = requests.get(target_url).text
 #nodes.sort() --> priority yapmak için
 
 class Node2:
-    def __init__(self, parent, cost, numberOfPins, board, children, cumulativeCost, path):
+    def __init__(self, parent, cost, numberOfPins, board, cumulativeCost, path):
         self.parent = parent
         self.cost = cost
         self.numberOfPins = numberOfPins
-        self.children = children
+        #self.children = children
         self.board = board
         self.cumulativeCost = cumulativeCost
         self.path = path
+        self.h1 = h1(board)
 
 class Node:
     def __init__(self, parent, cost, numberOfPins, board, cumulativeCost, path):
@@ -30,6 +31,27 @@ class Node:
         self.board = board
         self.cumulativeCost = cumulativeCost
         self.path = path
+
+def h1(board):
+
+    r = len(board)
+    c = len(board[0])
+    columns = 0
+    rows = 0
+
+    for i in range(r):
+        for j in range(c):
+            if board[i][j] != '.':
+                rows = rows + 1
+                break
+
+    for i in range(c):
+        for j in range(r):
+            if board[j][i] != '.':
+                columns = columns + 1
+                break
+
+    return min(rows, columns)
 
 def printBoard(board):
     for row in board:
@@ -169,6 +191,56 @@ def canGo(board, pin, locs, direction): #returns the number of jumps a pin can m
             return -1
 
 
+"""def sortNodesByH1(nodes):
+
+    nodesAndH1 = {}
+    i = 0
+    for node in nodes:
+        board = node.board
+        h = h1(board)
+        nodesAndH1[i] = h
+        i = i+1
+
+    order = list(dict(sorted(nodesAndH1.items(), key=lambda item: item[1])).keys())
+
+    res = []
+    for i in range(len(nodes)):
+        res.append(nodes[order[i]])
+    return res"""
+
+def allMovesSorted(board): #returns all possible moves but sorted in decreasing order according to path costs
+    rows = len(board)
+    columns = len(board[0])
+
+    moves = []
+
+    locs = getPinsAndLocations(board)
+
+    ups = []
+    rights = []
+    downs = []
+    lefts = []
+
+    for pin in locs:
+        up = canGo(board, pin, locs, "up")
+        down = canGo(board, pin, locs, "down")
+        left = canGo(board, pin, locs, "left")
+        right = canGo(board, pin, locs, "right")
+        if up != -1:
+            ups.append(pin + " up " + str(up))
+        if right != -1:
+            rights.append(pin + " right " + str(right))
+        if down != -1:
+            downs.append(pin + " down " + str(down))
+        if left != -1:
+            lefts.append(pin + " left " + str(left))
+
+    moves.extend(ups)
+    moves.extend(rights)
+    moves.extend(downs)
+    moves.extend(lefts)
+    return moves
+
 def findAllMoves(board): #returns all possible moves in a board EXPAND
     rows = len(board)
     columns = len(board[0])
@@ -281,6 +353,71 @@ def DFS(board):
     return False, None
 
 
+def UCS(board):
+    queue = []
+    pinsAndLocs = getPinsAndLocations(board)
+    nofPins = len(pinsAndLocs)
+    root = Node(None, 0, nofPins, board, 0, "")
+
+    queue.append(root)
+
+    while len(queue) > 0:
+        node = queue.pop(0)
+        board = node.board
+        nofPins = node.numberOfPins
+        path = node.path
+        if nofPins == 1:
+            return True, node
+        else:
+            moves = allMovesSorted(board)
+            if len(moves) == 0:
+                continue
+            else:
+                for move in moves:
+                    removedPins = int(move.split()[2]) - 1
+                    board_ = updateBoard(board, move)
+                    # printBoard(board_)
+                    cost = getCostOfAMove(move)
+                    queue.append(Node(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost),
+                                      (path + ", " + move)))
+
+    return False, None
+
+def GS(board):
+
+    #printBoard(board)
+    queue = []
+    pinsAndLocs = getPinsAndLocations(board)
+    nofPins = len(pinsAndLocs)
+    root = Node2(None, 0, nofPins, board, 0, "")
+
+    queue.append(root)
+
+    while len(queue) > 0:
+        node = queue.pop(0)
+        board = node.board
+        nofPins = node.numberOfPins
+        path = node.path
+        if nofPins == 1:
+            return True, node
+        else:
+            moves = findAllMoves(board)
+            if len(moves) == 0:
+                continue
+            else:
+                nodes = []
+                for move in moves:
+                    removedPins = int(move.split()[2]) - 1
+                    board_ = updateBoard(board, move)
+                    #printBoard(board_)
+                    cost = getCostOfAMove(move)
+                    nodes.append(Node2(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost), (path + ", " + move)))
+                nodes.sort(key=lambda x: x.h1, reverse=False)
+                queue.extend(nodes)
+
+    return False, None
+
+
 board = []
 for line in txt.splitlines():
 
@@ -292,7 +429,7 @@ for line in txt.splitlines():
     board.append(l)
 
 printBoard(board)
-success, node = DFS(board)
+success, node = GS(board)
 print(success, node.cumulativeCost, node.path)
 """pinloc = getPinsAndLocations(board)
 
