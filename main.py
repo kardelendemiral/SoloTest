@@ -1,11 +1,14 @@
 import requests
 from copy import copy, deepcopy
 import collections
+from operator import attrgetter
+from queue import PriorityQueue
 search_list=["BFS","DFS","UCS","GS","A*","A*2"]
 search="BFS"
-target_url="https://www.cmpe.boun.edu.tr/~emre/courses/cmpe480/hw1/input.txt"
+target_url="https://www.cmpe.boun.edu.tr/~emre/courses/cmpe480/hw1/input2"
 txt = requests.get(target_url).text
 
+nOfRemovedNodes = 0
 
 #nodes = []
 #nodes.append((cost, node))
@@ -22,6 +25,12 @@ class Node2:
         self.path = path
         self.h1 = h1(board)
 
+    def __lt__(self, other):
+        if (self.h1 < other.h1):
+            return True
+        else:
+            return False
+
 class Node:
     def __init__(self, parent, cost, numberOfPins, board, cumulativeCost, path):
         self.parent = parent
@@ -31,6 +40,12 @@ class Node:
         self.board = board
         self.cumulativeCost = cumulativeCost
         self.path = path
+
+    def __lt__(self, other):
+        if (self.cumulativeCost < other.cumulativeCost):
+            return True
+        else:
+            return False
 
 def h1(board):
 
@@ -282,6 +297,7 @@ def getCostOfAMove(move):
 
 def BFS(board):
 
+    global nOfRemovedNodes
     #printBoard(board)
     queue = []
     pinsAndLocs = getPinsAndLocations(board)
@@ -292,6 +308,7 @@ def BFS(board):
 
     while len(queue) > 0:
         node = queue.pop(0)
+        nOfRemovedNodes = nOfRemovedNodes + 1
         board = node.board
         nofPins = node.numberOfPins
         path = node.path
@@ -303,57 +320,19 @@ def BFS(board):
                 continue
             else:
                 for move in moves:
-                    removedPins = int(move.split()[2]) - 1
+                    m = move.split()
+                    removedPins = int(m[2]) - 1
                     board_ = updateBoard(board, move)
                     #printBoard(board_)
                     cost = getCostOfAMove(move)
-                    queue.append(Node(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost), (path + ", " + move)))
+                    queue.append(Node(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost), (path + ", " + m[0]+" "+m[1])))
 
     return False, None
 
 
 def DFS(board):
-
-    stack = []
-    pinsAndLocs = getPinsAndLocations(board)
-    nofPins = len(pinsAndLocs)
-    root = Node(None, 0, nofPins, board, 0, "")
-
-    stack.append([root])
-
-    while len(stack) > 0:
-        lst = stack.pop()
-        if len(lst) == 0:
-            continue
-        node = lst[0]
-        board = node.board
-        nofPins = node.numberOfPins
-        path = node.path
-
-        if nofPins == 1:
-            return True, node
-
-        moves = findAllMoves(board)
-        if len(moves) == 0:
-            lst.pop(0)
-            stack.append(lst)
-            continue
-
-        stack.append(lst)
-        l = []
-        for move in moves:
-            removedPins = int(move.split()[2]) - 1
-            board_ = updateBoard(board, move)
-            # printBoard(board_)
-            cost = getCostOfAMove(move)
-            l.append(Node(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost), (path + ", " + move)))
-
-        stack.append(l)
-
-    return False, None
-
-
-def UCS(board):
+    global nOfRemovedNodes
+    # printBoard(board)
     queue = []
     pinsAndLocs = getPinsAndLocations(board)
     nofPins = len(pinsAndLocs)
@@ -362,39 +341,42 @@ def UCS(board):
     queue.append(root)
 
     while len(queue) > 0:
-        node = queue.pop(0)
+        node = queue.pop()
+        nOfRemovedNodes = nOfRemovedNodes + 1
         board = node.board
         nofPins = node.numberOfPins
         path = node.path
         if nofPins == 1:
             return True, node
         else:
-            moves = allMovesSorted(board)
+            moves = findAllMoves(board)
             if len(moves) == 0:
                 continue
             else:
                 for move in moves:
-                    removedPins = int(move.split()[2]) - 1
+                    m = move.split()
+                    removedPins = int(m[2]) - 1
                     board_ = updateBoard(board, move)
                     # printBoard(board_)
                     cost = getCostOfAMove(move)
                     queue.append(Node(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost),
-                                      (path + ", " + move)))
+                                      (path + ", " + m[0]+" "+m[1])))
 
     return False, None
 
-def GS(board):
 
-    #printBoard(board)
-    queue = []
+def UCS(board):
+    global nOfRemovedNodes
+    queue = PriorityQueue()
     pinsAndLocs = getPinsAndLocations(board)
     nofPins = len(pinsAndLocs)
-    root = Node2(None, 0, nofPins, board, 0, "")
+    root = Node(None, 0, nofPins, board, 0, "")
 
-    queue.append(root)
+    queue.put(root)
 
-    while len(queue) > 0:
-        node = queue.pop(0)
+    while not queue.empty():
+        node = queue.get()
+        nOfRemovedNodes = nOfRemovedNodes + 1
         board = node.board
         nofPins = node.numberOfPins
         path = node.path
@@ -407,13 +389,49 @@ def GS(board):
             else:
                 nodes = []
                 for move in moves:
-                    removedPins = int(move.split()[2]) - 1
+                    m = move.split()
+                    removedPins = int(m[2]) - 1
+                    board_ = updateBoard(board, move)
+                    # printBoard(board_)
+                    cost = getCostOfAMove(move)
+                    queue.put(Node(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost),
+                                      (path + ", " + m[0]+" "+m[1])))
+
+    return False, None
+
+def GS(board):
+
+    global nOfRemovedNodes
+
+    #printBoard(board)
+    queue = PriorityQueue()
+    pinsAndLocs = getPinsAndLocations(board)
+    nofPins = len(pinsAndLocs)
+    root = Node2(None, 0, nofPins, board, 0, "")
+
+    queue.put(root)
+
+    while not queue.empty():
+        node = queue.get()
+        nOfRemovedNodes = nOfRemovedNodes + 1
+        board = node.board
+        nofPins = node.numberOfPins
+        path = node.path
+        if nofPins == 1:
+            return True, node
+        else:
+            moves = findAllMoves(board)
+            if len(moves) == 0:
+                continue
+            else:
+                nodes = []
+                for move in moves:
+                    m = move.split()
+                    removedPins = int(m[2]) - 1
                     board_ = updateBoard(board, move)
                     #printBoard(board_)
                     cost = getCostOfAMove(move)
-                    nodes.append(Node2(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost), (path + ", " + move)))
-                nodes.sort(key=lambda x: x.h1, reverse=False)
-                queue.extend(nodes)
+                    queue.put(Node2(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost), (path + ", " + m[0]+" "+m[1])))
 
     return False, None
 
@@ -429,8 +447,12 @@ for line in txt.splitlines():
     board.append(l)
 
 printBoard(board)
-success, node = GS(board)
-print(success, node.cumulativeCost, node.path)
+success, node = UCS(board)
+if success:
+    print("Number of removed nodes:", nOfRemovedNodes)
+    print("Path cost:", node.cumulativeCost)
+    print("Solution:", node.path[2:] + ",")
+
 """pinloc = getPinsAndLocations(board)
 
 board2 = updateBoard(board, "d down 4", pinloc)
