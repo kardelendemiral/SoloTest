@@ -3,6 +3,7 @@ from copy import copy, deepcopy
 import collections
 from operator import attrgetter
 from queue import PriorityQueue
+import functools
 search_list=["BFS","DFS","UCS","GS","A*","A*2"]
 search="BFS"
 target_url="https://www.cmpe.boun.edu.tr/~emre/courses/cmpe480/hw1/input1"
@@ -10,9 +11,9 @@ txt = requests.get(target_url).text
 
 nOfRemovedNodes = 0
 
-
+@functools.total_ordering
 class Node3:
-    def __init__(self, parent, cost, numberOfPins, board, cumulativeCost, path, pin, direction):
+    def __init__(self, parent, cost, numberOfPins, board, cumulativeCost, path, pin, direction, age):
         self.parent = parent
         self.cost = cost
         self.numberOfPins = numberOfPins
@@ -23,18 +24,24 @@ class Node3:
         self.h1 = h1(board)
         self.pin = pin
         self.direction = direction
+        self.age = age
 
+    def __eq__(self, other):
+        return self.cumulativeCost + self.h1 == other.cumulativeCost + other.h1
     def __lt__(self, other):
         if self.h1 + self.cumulativeCost < other.h1 + other.cumulativeCost:
             return True
+        elif self.h1 + self.cumulativeCost > other.h1 + other.cumulativeCost:
+            return False
         elif self.h1 + self.cumulativeCost == other.h1 + other.cumulativeCost and self.pin != other.pin:
-            return self.pin < other.pin
-        elif self.pin == other.pin:
-            return directionPrecedence(self.direction, other.direction)
-
+            return ord(self.pin) < ord(other.pin)
+        elif ord(self.pin) == ord(other.pin) and getCostOfADirection(self.direction) != getCostOfADirection(other.direction):
+            return getCostOfADirection(self.direction) > getCostOfADirection(other.direction)
+        else:
+            return self.age > other.age
 
 class Node2:
-    def __init__(self, parent, cost, numberOfPins, board, cumulativeCost, path, pin, direction):
+    def __init__(self, parent, cost, numberOfPins, board, cumulativeCost, path, pin, direction, age):
         self.parent = parent
         self.cost = cost
         self.numberOfPins = numberOfPins
@@ -45,17 +52,22 @@ class Node2:
         self.h1 = h1(board)
         self.pin = pin
         self.direction = direction
+        self. age = age
 
     def __lt__(self, other):
         if self.h1 < other.h1:
             return True
+        elif self.h1 > other.h1:
+            return False
         elif self.h1 == other.h1 and self.pin != other.pin:
             return self.pin < other.pin
-        elif self.pin == other.pin:
-            return directionPrecedence(self.direction, other.direction)
+        elif ord(self.pin) == ord(other.pin):
+            return getCostOfADirection(self.direction) > getCostOfADirection(other.direction)
+        else:
+            return self.age > other.age
 
 class Node:
-    def __init__(self, parent, cost, numberOfPins, board, cumulativeCost, path, pin, direction):
+    def __init__(self, parent, cost, numberOfPins, board, cumulativeCost, path, pin, direction, age):
         self.parent = parent
         self.cost = cost
         self.numberOfPins = numberOfPins
@@ -65,18 +77,21 @@ class Node:
         self.path = path
         self.pin = pin
         self.direction = direction
+        self.age = age
 
     def __lt__(self, other):
         if self.cumulativeCost < other.cumulativeCost:
             return True
+        elif self.cumulativeCost > other.cumulativeCost:
+            return False
         elif self.cumulativeCost == other.cumulativeCost and self.pin != other.pin:
-            return self.pin < other.pin
-        elif self.pin == other.pin:
-            return directionPrecedence(self.direction, other.direction)
+            return ord(self.pin) < ord(other.pin)
+        elif self.pin == other.pin  and getCostOfADirection(self.direction) != getCostOfADirection(other.direction):
+            return getCostOfADirection(self.direction) > getCostOfADirection(other.direction)
+        else:
+            return self.age > other.age
 
 def directionPrecedence(first, second):
-
-    #print("aaa")
 
     if first == second:
         return False
@@ -267,7 +282,6 @@ def findAllMoves(board): #returns all possible moves in a board EXPAND
 
     locs = getPinsAndLocations(board)
 
-
     for pin in locs:
         up = canGo(board, pin, locs, "up")
         down = canGo(board, pin, locs, "down")
@@ -287,6 +301,15 @@ def findAllMoves(board): #returns all possible moves in a board EXPAND
     return moves
 
 
+def getCostOfADirection(direction):
+    switcher = {
+        "up": 1,
+        "down": 3,
+        "left": 4,
+        "right": 2,
+    }
+    return switcher.get(direction)
+
 def getCostOfAMove(move):
     move = move.split()
     direction = move[1]
@@ -303,9 +326,10 @@ def BFS(board):
     global nOfRemovedNodes
     #printBoard(board)
     queue = []
+    age = 0
     pinsAndLocs = getPinsAndLocations(board)
     nofPins = len(pinsAndLocs)
-    root = Node(None, 0, nofPins, board, 0, "", None, None)
+    root = Node(None, 0, nofPins, board, 0, "", None, None, age)
 
     queue.append(root)
 
@@ -328,7 +352,7 @@ def BFS(board):
                     board_ = updateBoard(board, move)
                     #printBoard(board_)
                     cost = getCostOfAMove(move)
-                    queue.append(Node(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost), (path + ", " + m[0]+" "+m[1]), m[0], m[1]))
+                    queue.append(Node(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost), (path + ", " + m[0]+" "+m[1]), m[0], m[1], age))
 
     return False, None
 
@@ -337,9 +361,10 @@ def DFS(board):
     global nOfRemovedNodes
     # printBoard(board)
     queue = []
+    age = 0
     pinsAndLocs = getPinsAndLocations(board)
     nofPins = len(pinsAndLocs)
-    root = Node(None, 0, nofPins, board, 0, "", None,None)
+    root = Node(None, 0, nofPins, board, 0, "", None,None, age)
 
     queue.append(root)
 
@@ -363,17 +388,18 @@ def DFS(board):
                     # printBoard(board_)
                     cost = getCostOfAMove(move)
                     queue.append(Node(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost),
-                                      (path + ", " + m[0]+" "+m[1]),m[0], m[1]))
+                                      (path + ", " + m[0]+" "+m[1]),m[0], m[1], age))
 
     return False, None
 
 
 def UCS(board):
     global nOfRemovedNodes
+    age = -1
     queue = PriorityQueue()
     pinsAndLocs = getPinsAndLocations(board)
     nofPins = len(pinsAndLocs)
-    root = Node(None, 0, nofPins, board, 0, "", None, None)
+    root = Node(None, 0, nofPins, board, 0, "", None, None, age)
 
     queue.put(root)
 
@@ -397,21 +423,23 @@ def UCS(board):
                     board_ = updateBoard(board, move)
                     # printBoard(board_)
                     cost = getCostOfAMove(move)
+                    age = age - 1
                     queue.put(Node(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost),
-                                      (path + ", " + m[0]+" "+m[1]),m[0], m[1]))
+                                      (path + ", " + m[0]+" "+m[1]),m[0], m[1], age))
 
     return False, None
 
 def GS(board):
 
     global nOfRemovedNodes
-
+    age = -1
     #printBoard(board)
     queue = PriorityQueue()
     pinsAndLocs = getPinsAndLocations(board)
     nofPins = len(pinsAndLocs)
-    root = Node2(None, 0, nofPins, board, 0, "", None, None)
+    root = Node2(None, 0, nofPins, board, 0, "", None, None, age)
 
+    age = age - 1
     queue.put(root)
 
     while not queue.empty():
@@ -434,25 +462,30 @@ def GS(board):
                     board_ = updateBoard(board, move)
                     #printBoard(board_)
                     cost = getCostOfAMove(move)
-                    queue.put(Node2(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost), (path + ", " + m[0]+" "+m[1]),m[0], m[1]))
+                    age = age - 1
+                    queue.put(Node2(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost), (path + ", " + m[0]+" "+m[1]),m[0], m[1], age))
 
     return False, None
 
 def A_star(board):
     global nOfRemovedNodes
 
+    age = -1
     # printBoard(board)
     queue = PriorityQueue()
     pinsAndLocs = getPinsAndLocations(board)
     nofPins = len(pinsAndLocs)
-    root = Node3(None, 0, nofPins, board, 0, "", None, None)
+    root = Node3(None, 0, nofPins, board, 0, "", None, None, age)
 
+    age = age - 1
     queue.put(root)
 
     while not queue.empty():
         node = queue.get()
         nOfRemovedNodes = nOfRemovedNodes + 1
         board = node.board
+       # printBoard(board)
+       # print()
         nofPins = node.numberOfPins
         path = node.path
         if nofPins == 1:
@@ -469,8 +502,9 @@ def A_star(board):
                     board_ = updateBoard(board, move)
                     # printBoard(board_)
                     cost = getCostOfAMove(move)
+                    age = age - 1
                     queue.put(Node3(node, cost, (nofPins - removedPins), board_, (node.cumulativeCost + cost),
-                                    (path + ", " + m[0] + " " + m[1]), m[0], m[1]))
+                                    (path + ", " + m[0] + " " + m[1]), m[0], m[1], age))
 
     return False, None
 
@@ -487,7 +521,7 @@ for line in txt.splitlines():
     board.append(l)
 
 #printBoard(board)
-success, node = UCS(board)
+success, node = A_star(board)
 if success:
     print("Number of removed nodes:", nOfRemovedNodes)
     print("Path cost:", node.cumulativeCost)
